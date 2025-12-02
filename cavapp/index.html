@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CavApp - Esperienza Serale</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> 
+    <meta name="apple-mobile-web-app-title" content="CavApp">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="CavApp">
+    <meta name="theme-color" content="#000000"> 
+    
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png"> 
+    
+    <link rel="manifest" href="/manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        /* Stili per l'animazione di fade-in e pulse */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% {
+                box-shadow: 0 0 25px rgba(147, 51, 234, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 45px rgba(147, 51, 234, 0.7);
+            }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-black">
+    <div id="root"></div>
+
+    <script>
+        // REGISTRAZIONE DEL SERVICE WORKER (CRUCIALE PER LA PWA E OFFLINE)
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then(registration => {
+                console.log('Service Worker registrato con successo:', registration.scope);
+              })
+              .catch(error => {
+                console.error('Registrazione Service Worker fallita:', error);
+              });
+          });
+        }
+    </script>
+
+    <script type="text/babel">
+        // Estraggo React Hooks dal contesto globale
+        const { useState, useEffect } = React;
+
+        // =================================================================
+        // FUNZIONI DI PERSISTENZA E PUNTI FEDELTÀ
+        // =================================================================
+
+        const getInitialHistory = () => {
+            try {
+                const storedHistory = localStorage.getItem('cavappHistory');
+                return storedHistory ? JSON.parse(storedHistory) : [];
+            } catch (error) {
+                console.error("Errore nel recupero da localStorage:", error);
+                return []; 
+            }
+        };
+
+        const getInitialPoints = () => {
+            try {
+                // Nuova chiave per i punti
+                const storedPoints = localStorage.getItem('cavappPoints');
+                return storedPoints ? parseInt(storedPoints) : 0;
+            } catch (error) {
+                console.error("Errore nel recupero punti da localStorage:", error);
+                return 0; 
+            }
+        };
+        
+        // NUOVA FUNZIONE DI PERSISTENZA PER I PREMI ATTIVI
+        const getInitialActivePrizes = () => {
+            try {
+                const storedPrizes = localStorage.getItem('cavappActivePrizes');
+                return storedPrizes ? JSON.parse(storedPrizes) : [];
+            } catch (error) {
+                console.error("Errore nel recupero premi attivi da localStorage:", error);
+                return []; 
+            }
+        };
+        
+        // NUOVA FUNZIONE DI PERSISTENZA PER IL NOME UTENTE
+        const getInitialUserName = () => {
+            try {
+                const storedName = localStorage.getItem('cavappUserName');
+                return storedName || null;
+            } catch (error) {
+                console.error("Errore nel recupero nome utente da localStorage:", error);
+                return null;
+            }
+        };
+
+
+        const savePointsToLocalStorage = (points) => {
+            try {
+                localStorage.setItem('cavappPoints', points.toString());
+            } catch (error) {
+                console.error("Errore nel salvataggio punti su localStorage:", error);
+            }
+        };
+        
+        // NUOVA FUNZIONE PER SALVARE I PREMI ATTIVI
+        const saveActivePrizesToLocalStorage = (prizes) => {
+            try {
+                localStorage.setItem('cavappActivePrizes', JSON.stringify(prizes));
+            } catch (error) {
+                console.error("Errore nel salvataggio premi attivi su localStorage:", error);
+            }
+        };
+        
+        // NUOVA FUNZIONE PER SALVARE IL NOME UTENTE
+        const saveUserNameToLocalStorage = (name) => {
+            try {
+                localStorage.setItem('cavappUserName', name);
+            } catch (error) {
+                console.error("Errore nel salvataggio nome utente su localStorage:", error);
+            }
+        };
+
+        // =================================================================
+
+
+        // --- ICONE ---
+        const Icons = {
+            ArrowLeft: () => <span className="text-xl">⬅️</span>,
+            MapPin: () => <span className="text-xl">📍</span>,
+            Heart: () => <span className="text-xl">❤️</span>,
+            Flame: () => <span className="text-xl">🔥</span>,
+            Check: () => <span className="text-xl">✅</span>,
+            Sparkles: () => <span className="text-xl">✨</span>,
+            Utensils: () => <span className="text-xl">🍽️</span>,
+            Bed: () => <span className="text-xl">🛏️</span>,
+            Home: () => <span className="text-xl">🏠</span>,
+            Music: () => <span className="text-xl">🎶</span>,
+            Lightbulb: () => <span className="text-xl">💡</span>,
+            Zap: () => <span className="text-xl">⚡</span>,
+            Smile: () => <span className="text-xl">😊</span>,
+            DollarSign: () => <span className="text-xl">💲</span>,
+            Cocktail: () => <span className="text-xl">🍹</span>,
+            Gift: () => <span className="text-xl">🎁</span>,
+            Star: () => <span className="text-xl">⭐</span>,
+            Tag: () => <span className="text-xl">🏷️</span>,
+        };
+
+        // Helper component per il logo
+        const CavAppLogo = ({ size = "normal" }) => {
+          const isLarge = size === "large";
+          
+          return (
+            <div className={`flex flex-col items-center justify-center ${isLarge ? 'mb-12 scale-125' : 'mb-6'} transition-all duration-500`}>
+              <div className={`relative flex items-center justify-center ${isLarge ? 'w-32 h-32' : 'w-24 h-24'}`}>
+                {/* Fiamma Viola SVG */}
+                <svg viewBox="0 0 24 24" className="w-full h-full text-purple-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.5)]">
+                  <path
+                    fill="currentColor"
+                    d="M12 23c4.97 0 9-3.84 9-8.5C21 8.5 14 2 12 2S3 8.5 3 14.5 7.03 23 12 23zm0-3c-1.5 0-2.5-1-2.5-2.5S10.5 16 12 16s2.5 1 2.5 2.5S13.5 20 12 20z"
+                    className="opacity-20"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M11.97 22c-4.3 0-7.78-3.3-7.78-7.37 0-3.1 2.87-7.66 5.84-11.45.69-.88 2.05-1.4 3.06-.35 2.19 2.27 4.7 5.75 4.7 9.4 0 5.4-3.5 9.77-5.82 9.77z"
+                  />
+                </svg>
+                {/* Lettera C all'interno */}
+                <span className={`absolute text-black font-bold font-serif pt-2 pr-0.5 ${isLarge ? 'text-5xl' : 'text-4xl'}`}>C</span>
+              </div>
+              <h1 className={`font-bold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600 mt-2 font-serif ${isLarge ? 'text-4xl' : 'text-3xl'}`}>
+                CavApp
+              </h1>
+            </div>
+          );
+        };
+        
+        // Helper component per le statistiche
+        const StatBox = ({ label, value, icon, highlight = false }) => (
+            <div className={`p-3 rounded-lg flex flex-col items-start ${highlight ? 'bg-purple-800/50 border border-purple-600' : 'bg-gray-800 border border-gray-700'}`}>
+                <div className={`text-xl mb-1 ${highlight ? 'text-white' : 'text-purple-400'}`}>
+                    {icon}
+                </div>
+                <span className="text-xs text-gray-400 uppercase font-medium">{label}</span>
+                <span className={`text-xl font-extrabold ${highlight ? 'text-white' : 'text-purple-300'}`}>{value}</span>
+            </div>
+        );
+
+        // --- CATALOGO PREMI AGGIORNATO (Punti abbassati e aggiunti sconti/tag) ---
+        const prizeCatalog = [
+            // id: 1-6 sono premi unici
+            { id: 1, name: 'Sconto Bottiglia Champagne', points: 150, discountValue: 50, relevanceTag: ['romantica', 'hot'], locationTag: ['casa_mia', 'casa_sua', 'hotel', 'ristorante'], description: 'Sconto di €50 su una bottiglia di Champagne premium. Utilizzabile ovunque.' },
+            { id: 2, name: 'Upgrade Atmosfera (Romantica)', points: 300, discountValue: 150, relevanceTag: ['romantica'], locationTag: ['casa_mia', 'casa_sua', 'hotel'], description: 'Allestimento gratuito con fiori freschi, candele e luci LED (valore €150).' },
+            { id: 3, name: 'Hot Box Pro (Lusso)', points: 450, discountValue: 100, relevanceTag: ['hot'], locationTag: ['casa_mia', 'casa_sua', 'hotel'], description: 'Kit di giochi e accessori per serate "Hot" di lusso. (Sconto €100)' },
+            { id: 4, name: 'Cena Gourmet Esclusiva', points: 600, discountValue: 250, relevanceTag: ['romantica'], locationTag: ['casa_mia', 'casa_sua', 'ristorante', 'hotel'], description: 'Voucher per una cena in un ristorante partner o Chef a domicilio (valore €250).' },
+            { id: 5, name: 'Concierge VIP - 3 Mesi', points: 900, discountValue: 0, relevanceTag: ['all'], locationTag: ['all'], description: 'Accesso prioritario al servizio concierge e supporto h24 per 3 mesi. (Servizio, nessun sconto diretto)' },
+            { id: 6, name: 'Weekend Suite di Lusso', points: 1500, discountValue: 400, relevanceTag: ['romantica', 'hot'], locationTag: ['hotel'], description: 'Sconto fisso di € 400 su una prenotazione in una suite o un Luxury Resort.' },
+            // NUOVI PREMI AGGIUNTI
+            { id: 7, name: '50% Sconto "Allestimento Intimo"', points: 200, discountValue: 50, relevanceTag: ['romantica'], locationTag: ['casa_mia', 'casa_sua'], description: 'Sconto di €50 su opzioni di allestimento intimo (es. petali, candele, luci soffuse) per serate a casa.' },
+            { id: 8, name: 'Voucher Hot Lingerie/Costumi', points: 500, discountValue: 120, relevanceTag: ['hot'], locationTag: ['all'], description: 'Voucher di €120 utilizzabile per l’acquisto di un set di Lingerie/Costumi Intimi Hot (Partner CavApp).' },
+        ];
+
+
+        // --- VIP CARD COMPONENT (Step 6) ---
+        function VIPCard({ currentPoints, setPoints, setStep, activePrizes, setActivePrizes }) {
+            
+            // Ottiene i premi che non sono ancora stati usati (isUsed: false o mancante)
+            const unusedPrizes = activePrizes.filter(p => p.isUsed !== true);
+            
+            const handleRedeem = (prize) => {
+                if (currentPoints >= prize.points) {
+                    if (window.confirm(`Sei sicuro di voler riscattare "${prize.name}" per ${prize.points} punti?`)) {
+                        const newPoints = currentPoints - prize.points;
+                        setPoints(newPoints);
+                        savePointsToLocalStorage(newPoints);
+                        
+                        // Salva il premio riscattato come "attivo"
+                        const redeemedPrize = { 
+                            ...prize, 
+                            redeemedId: Date.now() + Math.random(), // ID univoco per l'istanza riscattata
+                            isUsed: false // Stato per l'utilizzo
+                        };
+                        
+                        setActivePrizes(prevPrizes => {
+                            const newPrizes = [...prevPrizes, redeemedPrize];
+                            saveActivePrizesToLocalStorage(newPrizes);
+                            return newPrizes;
+                        });
+                        
+                        alert(`Congratulazioni! Hai riscattato "${prize.name}". Potrai utilizzarlo nella prossima serata compatibile. Lo sconto è di €${prize.discountValue}.`);
+                    }
+                } else {
+                    alert(`Non hai abbastanza punti! Ti servono altri ${prize.points - currentPoints} punti per questo premio.`);
+                }
+            };
+        
+            return (
+                <div className="w-full max-w-md animate-fade-in text-center space-y-8 pb-4">
+                    
+                    {/* Header Standard per Step 6 (Senza freccia) */}
+                    <div className="w-full flex justify-center">
+                        <CavAppLogo size="normal" />
+                    </div>
+                    {/* Fine Header Standard */}
+
+                    <h2 className="text-3xl font-extrabold text-white mb-2 font-serif tracking-wider border-b border-purple-800 pb-2">
+                        VIP Card & Programma Fedeltà
+                    </h2>
+
+                    {/* Totale Punti */}
+                    <div className="bg-gradient-to-r from-purple-800 to-purple-900 border border-purple-600 rounded-xl p-6 shadow-2xl relative">
+                        <Icons.Star className="text-yellow-400 absolute top-[-10px] right-[-10px] transform rotate-12 text-5xl" />
+                        <h3 className="text-sm text-white uppercase tracking-widest mb-2 font-bold">I Tuoi Punti Fedeltà</h3>
+                        <p className="text-6xl font-extrabold text-yellow-300 drop-shadow-lg">{currentPoints}</p>
+                        <p className="text-md text-purple-300 mt-2">Continua a programmare serate per accumulare!</p>
+                    </div>
+                    
+                    {/* Premi Riscattati e Attivi */}
+                    <div className="text-left bg-gray-900 border border-green-800 rounded-xl p-4 shadow-2xl">
+                        <h3 className="text-xs text-green-400 uppercase tracking-widest mb-4 font-bold flex items-center gap-2">
+                            <Icons.Tag className="text-green-400 text-lg"/> Premi Riscattati e Pronti all'Uso ({unusedPrizes.length})
+                        </h3>
+                        {unusedPrizes.length > 0 ? (
+                            <div className="space-y-3">
+                                {unusedPrizes.map((prize) => (
+                                    <div key={prize.redeemedId} className="border-b border-gray-800 pb-3 last:border-b-0">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-md font-bold text-white flex items-center gap-1 mb-1">
+                                                {prize.name}
+                                            </span>
+                                            <span className="flex-shrink-0 ml-4 px-3 py-1 rounded-full text-sm font-semibold bg-green-700/50 text-green-300">
+                                                Sconto €{prize.discountValue}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500">
+                                            Compatibile: <span className="capitalize">{prize.relevanceTag.join(', ')}</span>.
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                             <p className="text-sm text-gray-500 italic">Non hai ancora riscattato premi. Acquista dal catalogo qui sotto!</p>
+                        )}
+                    </div>
+
+
+                    {/* Catalogo Premi */}
+                    <div className="text-left bg-gray-900 border border-purple-800 rounded-xl p-4 shadow-2xl">
+                        <h3 className="text-xs text-purple-400 uppercase tracking-widest mb-4 font-bold">Catalogo Premi CavApp</h3>
+                        <div className="space-y-4">
+                            {prizeCatalog.map((prize) => {
+                                const canRedeem = currentPoints >= prize.points;
+                                return (
+                                    <div key={prize.id} className="border-b border-gray-800 pb-4 last:border-b-0 flex justify-between items-center">
+                                        <div className="pr-2">
+                                            <span className="text-md font-bold text-white flex items-center gap-1 mb-1">
+                                                <Icons.Gift className="text-pink-400 text-lg"/> {prize.name}
+                                            </span>
+                                            <p className="text-xs text-gray-500">
+                                                {prize.description}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleRedeem(prize)}
+                                            disabled={!canRedeem}
+                                            className={`flex-shrink-0 ml-4 px-3 py-1 rounded-full text-sm font-semibold transition-colors duration-300 ${
+                                                canRedeem
+                                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            {prize.points} Punti
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => setStep(0)}
+                        className="mt-6 w-full py-4 rounded-full bg-gradient-to-r from-purple-700 to-purple-900 text-white font-bold text-lg tracking-wider shadow-[0_0_25px_rgba(147,51,234,0.4)] hover:scale-[1.02] transition-all duration-300"
+                    >
+                        TORNA ALLA PAGINA INIZIALE
+                    </button>
+                </div>
+            );
+        }
+
+        // --- MAIN APP COMPONENT ---
+        function App() {
+          // STEP 6 AGGIUNTO: 0: Welcome, 1: Mood, 2: Location, 3: Options, 4: Summary, 5: Report, 6: VIP Card
+          const [step, setStep] = useState(0); 
+          const [mood, setMood] = useState(null);
+          const [location, setLocation] = useState(null);
+          const [selectedOptions, setSelectedOptions] = useState([]);
+          const [historyList, setHistoryList] = useState(getInitialHistory); 
+          const [points, setPoints] = useState(getInitialPoints); // STATO PUNTI
+          const [activePrizes, setActivePrizes] = useState(getInitialActivePrizes); // NUOVO: STATO PREMI ATTIVI
+          const [prizeToUseId, setPrizeToUseId] = useState(null); // NUOVO: Premio selezionato per la serata corrente
+          
+          // NUOVO: STATO PER IL NOME UTENTE
+          const [userName, setUserName] = useState(getInitialUserName); 
+          
+          // --- HANDLER NOME UTENTE ---
+          const handleLogin = () => {
+                const newName = prompt("Inserisci il tuo nome (max 15 caratteri):");
+                if (newName && newName.trim()) {
+                    const trimmedName = newName.trim().substring(0, 15);
+                    setUserName(trimmedName);
+                    saveUserNameToLocalStorage(trimmedName);
+                }
+            };
+
+            const handleLogout = () => {
+                if (window.confirm("Vuoi davvero disconnettere questo utente?")) {
+                    setUserName(null);
+                    localStorage.removeItem('cavappUserName');
+                }
+            };
+          // ----------------------------
+
+
+          const optionsByMoodAndLocation = {
+            romantica: {
+              casa_mia: [{ id: 'petali', label: 'Petali di rosa', icon: <Icons.Heart size={18} />, price: 45 }, { id: 'vino', label: 'Vino e calici', icon: <Icons.Utensils size={18} />, price: 30 }, { id: 'cena_gourmet', label: 'Cena Gourmet (Chef)', icon: <Icons.Utensils size={18} />, price: 120 }, { id: 'luci_soffuse', label: 'Luci soffuse', icon: <Icons.Lightbulb size={18} />, price: 15 }, { id: 'playlist', label: 'Playlist d’atmosfera', icon: <Icons.Music size={18} />, price: 5 }, { id: 'playlist_dediche', label: 'Playlist personalizzata con dediche', icon: <Icons.Music size={18} />, price: 20 }, { id: 'cocktail_coppia', label: 'Preparazione di cocktail/mocktail di coppia', icon: <Icons.Cocktail size={18} />, price: 50 }, { id: 'massaggio_istruzioni', label: 'Massaggio di coppia con istruzioni e kit', icon: <Icons.Bed size={18} />, price: 80 }, { id: 'candele', label: 'Candele profumate', icon: <Icons.Flame size={18} />, price: 25 }, { id: 'olio', label: 'Oli essenziali per massaggi', icon: <Icons.Sparkles size={18} />, price: 35 }, { id: 'idromassaggio', label: 'Vasca Idromassaggio (Relax)', icon: <Icons.Sparkles size={18} />, price: 150 }, { id: 'sorpresa', label: 'Regalo a sorpresa', icon: <Icons.Sparkles size={18} />, price: 100 }, { id: 'cena_delivery', label: 'Cena delivery gourmet', icon: <Icons.Utensils size={18} />, price: 80 }, ],
+              casa_sua: [{ id: 'petali', label: 'Petali di rosa', icon: <Icons.Heart size={18} />, price: 45 }, { id: 'vino', label: 'Vino e calici', icon: <Icons.Utensils size={18} />, price: 30 }, { id: 'cena_gourmet', label: 'Cena Gourmet (Chef)', icon: <Icons.Utensils size={18} />, price: 120 }, { id: 'luci_soffuse', label: 'Luci soffuse', icon: <Icons.Lightbulb size={18} />, price: 15 }, { id: 'playlist', label: 'Playlist d’atmosfera', icon: <Icons.Music size={18} />, price: 5 }, { id: 'playlist_dediche', label: 'Playlist personalizzata con dediche', icon: <Icons.Music size={18} />, price: 20 }, { id: 'cocktail_coppia', label: 'Preparazione di cocktail/mocktail di coppia', icon: <Icons.Cocktail size={18} />, price: 50 }, { id: 'massaggio_istruzioni', label: 'Massaggio di coppia con istruzioni e kit', icon: <Icons.Bed size={18} />, price: 80 }, { id: 'candele', label: 'Candele profumate', icon: <Icons.Flame size={18} />, price: 25 }, { id: 'olio', label: 'Oli essenziali per massaggi', icon: <Icons.Sparkles size={18} />, price: 35 }, { id: 'idromassaggio', label: 'Vasca Idromassaggio (Relax)', icon: <Icons.Sparkles size={18} />, price: 150 }, { id: 'sorpresa', label: 'Regalo a sorpresa', icon: <Icons.Sparkles size={18} />, price: 100 }, { id: 'cena_delivery', label: 'Cena delivery gourmet', icon: <Icons.Utensils size={18} />, price: 80 }, ], 
+              hotel: [ 
+                { id: 'suite_romantica', label: 'Suite Deluxe / Junior Suite', icon: <Icons.Bed size={18} />, price: 400 },
+                { id: 'spa', label: 'Hotel con SPA privata', icon: <Icons.Sparkles size={18} />, price: 150 },
+                { id: 'champagne', label: 'Servizio in camera & Champagne', icon: <Icons.Utensils size={18} />, price: 90 }, 
+                { id: 'resort_luxury', label: 'Luxury Resort (Vista mozzafiato)', icon: <Icons.Bed size={18} />, price: 600 }, 
+                { id: 'massaggi_coppia', label: 'Massaggi di coppia', icon: <Icons.Sparkles size={18} />, price: 120 }, 
+                { id: 'cena_terrazza_privata', label: 'Cena privata con chef su terrazza/balcone', icon: <Icons.Utensils size={18} />, price: 280 }, 
+                { id: 'allestimento_tema', label: 'Allestimento floreale/luminoso a tema', icon: <Icons.Sparkles size={18} />, price: 90 },
+              ],
+              ristorante: [
+                { id: 'lume', label: 'Cena a lume di candela classica', icon: <Icons.Flame size={18} />, price: 110 },
+                { id: 'prive_romantico', label: 'Saletta Privata / Alcova', icon: <Icons.Heart size={18} />, price: 80 },
+                { id: 'stellato', label: 'Degustazione Stellata / Chef', icon: <Icons.Utensils size={18} />, price: 350 },
+                { id: 'vista_panoramica', label: 'Ristorante con Vista Panoramica', icon: <Icons.MapPin size={18} />, price: 50 }, 
+                { id: 'sommelier_vini', label: 'Degustazioni di vini e pairing', icon: <Icons.Utensils size={18} />, price: 180 }, 
+                { id: 'musica_lounge', label: 'Musica dal vivo / Sottofondo Lounge', icon: <Icons.Music size={18} />, price: 40 },
+                { id: 'rosa_tavolo', label: 'Rosa rossa sul tavolo', icon: <Icons.Heart size={18} />, price: 15 }, 
+                { id: 'dessert_dedica', label: 'Dessert personalizzato con dedica', icon: <Icons.Utensils size={18} />, price: 30 }, 
+                { id: 'transfer_lusso', label: 'Transfer con auto di lusso', icon: <Icons.Sparkles size={18} />, price: 150 },
+              ],
+            },
+            hot: {
+              casa_mia: [{ id: 'bdsm', label: 'Attrezzatura e atmosfera BDSM', icon: <Icons.Zap size={18} />, price: 180 }, { id: 'toys', label: 'Toys e giochi per adulti', icon: <Icons.Smile size={18} />, price: 60 }, { id: 'pole', label: 'Palo pole dance con poltroncine', icon: <Icons.Sparkles size={18} />, price: 250 }, { id: 'led_rossi', label: 'LED Rossi/Luci Pulsanti', icon: <Icons.Flame size={18} />, price: 20 }, { id: 'idromassaggio', label: 'Vasca Idromassaggio (Sensuale)', icon: <Icons.Sparkles size={18} />, price: 150 }, { id: 'cena_delivery', label: 'Cena delivery rapida/hot', icon: <Icons.Utensils size={18} />, price: 80 }, { id: 'olio', label: 'Oli essenziali per massaggi hot', icon: <Icons.Sparkles size={18} />, price: 35 }, { id: 'playlist', label: 'Playlist sexy/ritmica', icon: <Icons.Music size={18} />, price: 5 }, { id: 'petali', label: 'Petali di rosa (Dettaglio)', icon: <Icons.Heart size={18} />, price: 45 }, { id: 'champagne', label: 'Champagne e Fragole', icon: <Icons.Utensils size={18} />, price: 50 }, { id: 'sex_swing', label: 'Sex Swing / Sospensione', icon: <Icons.Zap size={18} />, price: 350 }, { id: 'proiettore_hot', label: 'Proiettore/Video a tema', icon: <Icons.Flame size={18} />, price: 70 }, { id: 'kit_lingerie', label: 'Kit Lingerie Sexy / Costumi Intimi', icon: <Icons.Heart size={18} />, price: 120 }, ], 
+              casa_sua: [{ id: 'bdsm', label: 'Attrezzatura e atmosfera BDSM', icon: <Icons.Zap size={18} />, price: 180 }, { id: 'toys', label: 'Toys e giochi per adulti', icon: <Icons.Smile size={18} />, price: 60 }, { id: 'pole', label: 'Palo pole dance con poltroncine', icon: <Icons.Sparkles size={18} />, price: 250 }, { id: 'led_rossi', label: 'LED Rossi/Luci Pulsanti', icon: <Icons.Flame size={18} />, price: 20 }, { id: 'idromassaggio', label: 'Vasca Idromassaggio (Sensuale)', icon: <Icons.Sparkles size={18} />, price: 150 }, { id: 'cena_delivery', label: 'Cena delivery rapida/hot', icon: <Icons.Utensils size={18} />, price: 80 }, { id: 'olio', label: 'Oli essenziali per massaggi hot', icon: <Icons.Sparkles size={18} />, price: 35 }, { id: 'playlist', label: 'Playlist sexy/ritmica', icon: <Icons.Music size={18} />, price: 5 }, { id: 'petali', label: 'Petali di rosa (Dettaglio)', icon: <Icons.Heart size={18} />, price: 45 }, { id: 'champagne', label: 'Champagne e Fragole', icon: <Icons.Utensils size={18} />, price: 50 }, { id: 'sex_swing', label: 'Sex Swing / Sospensione', icon: <Icons.Zap size={18} />, price: 350 }, { id: 'proiettore_hot', label: 'Proiettore/Video a tema', icon: <Icons.Flame size={18} />, price: 70 }, { id: 'kit_lingerie', label: 'Kit Lingerie Sexy / Costumi Intimi', icon: <Icons.Heart size={18} />, price: 120 }, ], 
+              hotel: [ 
+                { id: 'love_hotel', label: 'Love Hotel a tema / Camera esplicita', icon: <Icons.Heart size={18} />, price: 300 },
+                { id: 'suite_idromassaggio', label: 'Suite con vasca idromassaggio XXL', icon: <Icons.Bed size={18} />, price: 450 },
+                { id: 'led_luci_hot', label: 'Allestimento luci LED e specchi', icon: <Icons.Flame size={18} />, price: 70 },
+                { id: 'kit_intimo', label: 'Kit giochi intimi e oli', icon: <Icons.Smile size={18} />, price: 60 },
+                { id: 'champagne_fragole', label: 'Champagne, cioccolatini e fragole', icon: <Icons.Utensils size={18} />, price: 50 }, 
+                { id: 'kit_massaggio_sensoriale', label: 'Kit per massaggio sensoriale (oli, pennelli, piume)', icon: <Icons.Sparkles size={18} />, price: 65 }, 
+                { id: 'kit_giochi_personalizzato', label: 'Kit di giochi/costumi personalizzato', icon: <Icons.Zap size={18} />, price: 140 },
+                { id: 'bagno_sensuale', label: 'Bagno in schiuma sensuale con oli e candele', icon: <Icons.Sparkles size={18} />, price: 80 }, 
+                { id: 'pole_hotel', label: 'Palo da pole dance portatile (Servizio in camera)', icon: <Icons.Sparkles size={18} />, price: 200 },
+              ],
+              ristorante: [
+                { id: 'prive_discreto', label: 'Saletta Privata con massima discrezione', icon: <Icons.Heart size={18} />, price: 120 },
+                { id: 'sushi_afrodisiaco', label: 'Sushi, Ostriche e Champagne', icon: <Icons.Utensils size={18} />, price: 150 },
+                { id: 'cocktail_bar', label: 'Cena in Cocktail Bar / Mixology', icon: <Icons.Utensils size={18} />, price: 90 },
+                { id: 'sommelier_distillati', label: 'Degustazione di Distillati (dopo cena)', icon: <Icons.Utensils size={18} />, price: 200 }, 
+                { id: 'vista_urbana', label: 'Lounge Bar con Vista Urbana (dopo cena)', icon: <Icons.MapPin size={18} />, price: 40 },
+                { id: 'fast_exit', label: 'Prenotazione last-minute / Priorità all’uscita', icon: <Icons.Zap size={18} />, price: 30 },
+                { id: 'servizio_discreto', label: 'Servizio camerieri su chiamata (max privacy)', icon: <Icons.Check size={18} />, price: 50 }, 
+                { id: 'tavolo_angolo_buio', label: 'Tavolo in angolo buio/riservato', icon: <Icons.Lightbulb size={18} />, price: 20 }, 
+                { id: 'dopo_cena_hot', label: 'Proseguimento in locale a tema', icon: <Icons.Flame size={18} />, price: 100 },
+              ],
+            },
+          };
+
+
+          const handleMoodSelect = (selectedMood) => {
+            setMood(selectedMood);
+            setStep(2);
+            setPrizeToUseId(null); // Reset premio selezionato per la nuova serata
+          };
+
+          const handleLocationSelect = (selectedLoc) => {
+            setLocation(selectedLoc);
+            setSelectedOptions([]); 
+            setStep(3);
+            setPrizeToUseId(null); // Reset premio selezionato
+          };
+
+          const toggleOption = (optionId) => {
+            if (selectedOptions.includes(optionId)) {
+              setSelectedOptions(selectedOptions.filter((id) => id !== optionId));
+            } else {
+              setSelectedOptions([...selectedOptions, optionId]);
+            }
+          };
+
+          const goBack = () => {
+            // L'azione di tornare indietro è permessa solo tra gli step 2 e 5 (escluso 6)
+            if (step > 1 && step < 5) setStep(step - 1); // < 5 perchè si torna indietro da Summary (Step 4)
+            setPrizeToUseId(null); // Reset premio selezionato
+          };
+
+          const restart = () => {
+            setStep(0); // Torna alla pagina Welcome (Step 0)
+            setMood(null);
+            setLocation(null);
+            setSelectedOptions([]);
+            setPrizeToUseId(null); // Reset premio selezionato
+          };
+          
+          /**
+           * Cancella la cronologia sia dallo stato React che da localStorage.
+           */
+          const handleClearHistory = () => {
+            if (window.confirm("Sei sicuro di voler cancellare TUTTA la cronologia, i punti e i premi? Questa azione è irreversibile.")) {
+                setHistoryList([]); 
+                setPoints(0); 
+                setActivePrizes([]); // Resetta anche i premi attivi
+                setPrizeToUseId(null); 
+                try {
+                    localStorage.removeItem('cavappHistory'); 
+                    localStorage.removeItem('cavappPoints'); 
+                    localStorage.removeItem('cavappActivePrizes'); // Svuota anche i premi attivi
+                    // NOTA: Il nome utente non viene cancellato da qui, per mantenere l'accesso.
+                } catch (error) {
+                     console.error("Errore nella rimozione da localStorage:", error);
+                }
+            }
+          };
+
+          /**
+           * Salva la serata corrente nella cronologia, incrementa i punti e passa allo Step 5 (Report)
+           */
+          const handleSaveAndReport = () => {
+            const currentOptionsList = optionsByMoodAndLocation[mood]?.[location] || [];
+            const priceDetails = currentOptionsList
+              .filter(opt => selectedOptions.includes(opt.id))
+              .map(opt => ({ label: opt.label, price: opt.price || 0 }));
+            const totalEstimatedPrice = priceDetails.reduce((sum, item) => sum + item.price, 0);
+
+            let finalPrice = totalEstimatedPrice;
+            let appliedDiscount = 0;
+            let appliedPrizeName = null;
+            
+            // LOGICA APPLICAZIONE PREMIO
+            if (prizeToUseId) {
+                const appliedPrize = activePrizes.find(p => p.redeemedId === prizeToUseId);
+                if (appliedPrize) {
+                    appliedDiscount = appliedPrize.discountValue;
+                    finalPrice = Math.max(0, totalEstimatedPrice - appliedDiscount);
+                    appliedPrizeName = appliedPrize.name;
+
+                    // MARCA IL PREMIO COME USATO E AGGIORNA LO STATO
+                    setActivePrizes(prevPrizes => {
+                        const updatedPrizes = prevPrizes.map(p => 
+                            p.redeemedId === prizeToUseId ? { ...p, isUsed: true } : p
+                        );
+                        saveActivePrizesToLocalStorage(updatedPrizes);
+                        return updatedPrizes;
+                    });
+                }
+            }
+
+
+            // CALCOLO PUNTI GUADAGNATI (basato sul prezzo *finale scontato*)
+            const pointsEarned = Math.floor(finalPrice / 10);
+            
+            // AGGIORNA PUNTI
+            setPoints(prevPoints => {
+                const newPoints = prevPoints + pointsEarned;
+                savePointsToLocalStorage(newPoints);
+                return newPoints;
+            });
+
+
+            const evaluation = generateEvaluation(mood, selectedOptions);
+
+            const newHistoryItem = {
+              id: Date.now(), // ID univoco
+              mood: mood,
+              location: location,
+              title: evaluation.title,
+              totalPrice: finalPrice, // Usa il prezzo scontato
+              pointsEarned: pointsEarned, 
+              options: priceDetails,
+              appliedPrize: appliedPrizeName, // Aggiunto nome premio usato per il report
+            };
+
+            // AGGIORNAMENTO STATO E SALVATAGGIO SU LOCALSTORAGE
+            setHistoryList(prevList => {
+                const updatedList = [...prevList, newHistoryItem];
+                try {
+                    localStorage.setItem('cavappHistory', JSON.stringify(updatedList));
+                } catch (error) {
+                    console.error("Errore nel salvataggio su localStorage:", error);
+                }
+                return updatedList;
+            });
+            
+            setPrizeToUseId(null); // Reset premio selezionato dopo aver salvato
+            setStep(5); // Passa alla pagina di report
+          };
+
+          // Funzione di valutazione (invariata)
+          const generateEvaluation = (mood, options) => {
+            let title = "";
+            let description = "";
+            
+            const isLuxury = options.some(id => [
+                'stellato', 'resort_luxury', 'suite_romantica', 'cena_gourmet', 
+                'prive_romantico', 'sommelier_vini', 'transfer_lusso',
+                'cena_terrazza_privata' 
+            ].includes(id));
+            
+            const isExplicit = options.some(id => [
+                'bdsm', 'toys', 'pole', 'led_rossi', 'love_hotel', 'kit_intimo', 'led_luci_hot',
+                'prive_discreto', 'sushi_afrodisiaco', 'sommelier_distillati', 'fast_exit',
+                'sex_swing', 'proiettore_hot', 'kit_lingerie',
+                'servizio_discreto', 'tavolo_angolo_buio', 'dopo_cena_hot',
+                'kit_giochi_personalizzato',
+                'pole_hotel' 
+            ].includes(id));
+            
+            const isIntimate = options.some(id => [
+                'petali', 'candele', 'luci_soffuse', 'playlist', 'playlist_dediche', 'cocktail_coppia', 'massaggio_istruzioni',
+                'rosa_tavolo', 'dessert_dedica',
+                'allestimento_tema', 
+                'bagno_sensuale',
+                'kit_massaggio_sensoriale'
+            ].includes(id));
+            
+            if (mood === 'hot') {
+                if (isExplicit) {
+                    title = "Trasgressiva & Intensa";
+                    description = "Una combinazione audace e senza freni, perfetta per esplorare la passione e i desideri più nascosti. Aspettati una serata carica di energia e gioco.";
+                } else if (isLuxury) {
+                    title = "Sensuale di Lusso";
+                    description = "Un'esperienza ad alto livello, dove il comfort, la qualità e l'atmosfera esclusiva fanno da sfondo a momenti di intensa sensualità.";
+                } else {
+                    title = "Passionale & Avvolgente";
+                    description = "Un'atmosfera incentrata sulla chimica e sul piacere, creando un ambiente caldo e invitante per riscoprire il fuoco della coppia.";
+                }
+            } else { // 'romantica'
+                if (isLuxury) {
+                    title = "Romantica d'Elite";
+                    description = "Il massimo del romanticismo, garantito da dettagli curati e servizi di alta gamma. Una serata indimenticabile all'insegna dell'eleganza.";
+                } else if (isExplicit) {
+                     title = "Dolcemente Audace";
+                    description = "Un mix intrigante tra romanticismo classico e tocchi di trasgressione. Ideale per chi vuole aggiungere un po' di pepe all'intimità.";
+                } else if (isIntimate) {
+                    title = "Intima & Raffinata";
+                    description = "L'ambiente ideale per una connessione profonda. Luci soffuse, profumi delicati e musica creano il nido perfetto per l'amore.";
+                } else {
+                    title = "Serata Classica";
+                    description = "Una base solida di romanticismo, focalizzata sul tempo di qualità insieme, con un occhio ai piaceri della tavola o del relax.";
+                }
+            }
+            
+            return { title, description };
+          };
+
+
+          // --- RENDERING SCREENS ---
+
+          // STEP 0: WELCOME
+          const renderWelcome = () => (
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in w-full">
+              <CavAppLogo size="large" />
+              
+              <p className="text-purple-300/60 mb-12 text-center max-w-xs italic">
+                Crea l'atmosfera perfetta<br/>per la tua serata indimenticabile.
+              </p>
+
+              <button
+                onClick={() => setStep(1)}
+                className="px-16 py-4 rounded-full bg-gradient-to-r from-purple-700 to-purple-900 text-white font-bold text-xl tracking-[0.2em] shadow-[0_0_25px_rgba(147,51,234,0.4)] border border-purple-500/30 hover:scale-105 hover:shadow-[0_0_40px_rgba(147,51,234,0.6)] active:scale-95 transition-all duration-300 animate-pulse-slow"
+              >
+                INIZIA
+              </button>
+              
+              <button
+                onClick={() => setStep(5)} 
+                className="mt-4 px-10 py-3 rounded-full bg-transparent text-purple-400 font-semibold text-sm tracking-wider border border-purple-800 hover:bg-purple-900/40 transition-all duration-300"
+              >
+                Vedi Report & Statistiche
+              </button>
+              
+              {/* BOTTONE VIP CARD - ORA VIOLA E COERENTE */}
+              <button
+                onClick={() => setStep(6)} 
+                className="mt-4 px-10 py-3 rounded-full bg-transparent text-purple-400 font-semibold text-sm tracking-wider border border-purple-800 hover:bg-purple-900/40 transition-all duration-300 flex items-center gap-2"
+              >
+                <Icons.Star className="text-purple-400"/>
+                VIP CARD ({points} Punti)
+              </button>
+            </div>
+          );
+
+          // STEP 1: MOOD
+          const renderMoodSelection = () => (
+            <div className="flex flex-col gap-6 w-full max-w-md animate-fade-in">
+              <h2 className="text-center text-purple-300 mb-4 text-xl font-semibold">Seleziona il Mood della Serata</h2>
+              
+              <button
+                onClick={() => handleMoodSelect('romantica')}
+                className="group relative overflow-hidden p-8 rounded-2xl border-2 border-purple-800 bg-gray-900 hover:bg-purple-900/40 transition-all duration-300 shadow-xl hover:shadow-[0_0_30px_rgba(147,51,234,0.4)]"
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <Icons.Heart className="w-12 h-12 text-pink-400 group-hover:scale-110 transition-transform duration-300" />
+                  <span className="text-2xl font-bold text-white tracking-wider">ROMANTICA</span>
+                  <span className="text-sm text-pink-400 opacity-80">Dolcezza e atmosfera intima</span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handleMoodSelect('hot')}
+                className="group relative overflow-hidden p-8 rounded-2xl border-2 border-purple-800 bg-gray-900 hover:bg-purple-900/40 transition-all duration-300 shadow-xl hover:shadow-[0_0_30px_rgba(147,51,234,0.4)]"
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <Icons.Flame className="w-12 h-12 text-red-500 group-hover:scale-110 transition-transform duration-300" />
+                  <span className="text-2xl font-bold text-white tracking-wider">HOT</span>
+                  <span className="text-sm text-red-400 opacity-80">Passione e fuoco travolgente</span>
+                </div>
+              </button>
+            </div>
+          );
+
+          // STEP 2: LOCATION
+          const renderLocationSelection = () => (
+            <div className="w-full max-w-md animate-fade-in">
+              <h2 className="text-center text-purple-300 mb-8 text-xl font-semibold">Dove avrà luogo l'esperienza?</h2>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { id: 'casa_mia', label: 'Casa Mia', icon: <Icons.Home /> },
+                  { id: 'casa_sua', label: 'Casa Sua', icon: <Icons.Home /> },
+                  { id: 'hotel', label: 'Hotel/Suite', icon: <Icons.Bed /> },
+                  { id: 'ristorante', label: 'Ristorante', icon: <Icons.Utensils /> },
+                ].map((loc) => (
+                  <button
+                    key={loc.id}
+                    onClick={() => handleLocationSelect(loc.id)}
+                    className="flex flex-col items-center justify-center p-6 rounded-xl border border-purple-700 bg-gray-900/80 hover:bg-purple-700 hover:text-white text-purple-400 transition-all duration-300 aspect-square shadow-md hover:shadow-lg"
+                  >
+                    <div className="mb-3 transform scale-125">{loc.icon}</div>
+                    <span className="font-semibold">{loc.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+
+          // STEP 3: OPTIONS
+          const renderOptionsSelection = () => {
+            const currentOptions = optionsByMoodAndLocation[mood]?.[location] || []; 
+            
+            const locationLabels = {
+              casa_mia: 'Casa Mia',
+              casa_sua: 'Casa Sua',
+              hotel: 'Hotel/Suite',
+              ristorante: 'Ristorante'
+            };
+
+            return (
+              <div className="w-full max-w-md flex flex-col h-full animate-fade-in pb-20">
+                <h2 className="text-center text-purple-300 mb-2 text-xl font-semibold">Dettagli dell'Esperienza per {locationLabels[location]} ({mood.toUpperCase()})</h2>
+                <p className="text-center text-gray-500 text-sm mb-6">Seleziona i servizi e gli allestimenti desiderati</p>
+                
+                <div className="flex flex-col gap-3">
+                  {currentOptions.map((opt) => {
+                    const isSelected = selectedOptions.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => toggleOption(opt.id)}
+                        className={`flex items-center justify-between p-4 rounded-lg border transition-all duration-300 ${
+                          isSelected
+                            ? 'bg-purple-900/50 border-purple-500 text-white shadow-lg'
+                            : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-purple-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`${isSelected ? 'text-purple-400' : 'text-gray-600'}`}>
+                            {opt.icon}
+                          </div>
+                          <span className="font-medium">{opt.label}</span>
+                        </div>
+                        {isSelected && <Icons.Check className="text-purple-400 w-5 h-5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setStep(4)}
+                  disabled={selectedOptions.length === 0}
+                  className={`mt-8 w-full py-4 rounded-full font-bold text-lg tracking-wider transition-all shadow-lg ${
+                    selectedOptions.length === 0
+                      ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-purple-600 to-purple-800 text-white hover:shadow-[0_0_20px_rgba(147,51,234,0.6)]'
+                  }`}
+                >
+                  RIEPILOGO SERATA 
+                </button>
+              </div>
+            );
+          };
+
+          // STEP 4: SUMMARY (Modificato per gestire l'applicazione del premio)
+          const renderSummary = () => {
+            const locationLabels = {
+              casa_mia: 'Casa Mia',
+              casa_sua: 'Casa Sua',
+              hotel: 'Hotel/Suite',
+              ristorante: 'Ristorante'
+            };
+            
+            const currentOptionsList = optionsByMoodAndLocation[mood]?.[location] || [];
+
+            const priceDetails = currentOptionsList
+              .filter(opt => selectedOptions.includes(opt.id))
+              .map(opt => ({ label: opt.label, price: opt.price || 0 }));
+              
+            const totalEstimatedPrice = priceDetails.reduce((sum, item) => sum + item.price, 0);
+            
+            const evaluation = generateEvaluation(mood, selectedOptions);
+            
+            // Logica per i premi attivi e compatibili
+            const relevantActivePrizes = activePrizes.filter(p => 
+                p.isUsed === false && 
+                (p.relevanceTag.includes('all') || p.relevanceTag.includes(mood)) &&
+                (p.locationTag.includes('all') || p.locationTag.includes(location))
+            );
+
+            let finalPrice = totalEstimatedPrice;
+            let appliedDiscount = 0;
+            let appliedPrizeName = null;
+            
+            // Calcolo del prezzo scontato se un premio è selezionato
+            if (prizeToUseId) {
+                const appliedPrize = activePrizes.find(p => p.redeemedId === prizeToUseId);
+                if (appliedPrize) {
+                    appliedDiscount = appliedPrize.discountValue;
+                    finalPrice = Math.max(0, totalEstimatedPrice - appliedDiscount);
+                    appliedPrizeName = appliedPrize.name;
+                }
+            }
+            
+            const pointsEarned = Math.floor(finalPrice / 10);
+
+
+            return (
+              <div className="w-full max-w-md animate-fade-in text-center space-y-8">
+                
+                {/* Valutazione Serata Card */}
+                <div className="bg-gray-900 border border-purple-800 rounded-xl p-6 shadow-2xl relative">
+                    <h3 className="text-xs text-purple-400 uppercase tracking-widest mb-2 font-bold">Valutazione dell'Esperienza</h3>
+                    <h2 className="text-3xl font-extrabold text-white mb-2 font-serif">{evaluation.title}</h2>
+                    <p className="text-sm text-gray-400 italic">{evaluation.description}</p>
+                </div>
+
+                {/* Premi Attivi Compatibili */}
+                {relevantActivePrizes.length > 0 && (
+                     <div className="bg-gray-900 border border-green-700 rounded-xl p-4 shadow-2xl text-left">
+                        <h3 className="text-xs text-green-400 uppercase tracking-widest mb-3 font-bold flex items-center gap-2">
+                             <Icons.Tag className="text-green-400"/>
+                            Premi Riscattati Compatibili
+                        </h3>
+                        {relevantActivePrizes.map(prize => (
+                            <div key={prize.redeemedId} className="flex justify-between items-center py-2 border-b border-gray-800 last:border-b-0">
+                                <div className="flex-1">
+                                    <span className="text-md font-bold text-white block">{prize.name}</span>
+                                    <span className="text-xs text-gray-500 block">Sconto: €{prize.discountValue}</span>
+                                </div>
+                                <button
+                                    onClick={() => setPrizeToUseId(prizeToUseId === prize.redeemedId ? null : prize.redeemedId)}
+                                    className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors duration-300 ${
+                                        prizeToUseId === prize.redeemedId 
+                                            ? 'bg-green-600 text-white' 
+                                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                                >
+                                    {prizeToUseId === prize.redeemedId ? 'APPLICATO' : 'Applica Sconto'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                {/* Riepilogo Dettagli Card */}
+                <div className="bg-gray-900 border border-purple-800 rounded-xl p-6 shadow-2xl">
+                     <h3 className="text-xs text-purple-400 uppercase tracking-widest mb-4 font-bold">Dettagli e Costi Stimati</h3>
+                    
+                    <div className="space-y-3 mb-6 text-sm text-left">
+                        {/* Mood & Location */}
+                         <div className="flex justify-between border-b border-gray-800 pb-1 mb-2">
+                            <p className="text-gray-400 font-medium">Mood</p>
+                            <p className="text-white font-semibold capitalize flex items-center gap-1">
+                                {mood === 'hot' ? <Icons.Flame className="text-red-500"/> : <Icons.Heart className="text-pink-500"/>}
+                                {mood}
+                            </p>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-800 pb-1">
+                            <p className="text-gray-400 font-medium">Location</p>
+                            <p className="text-white font-semibold">{locationLabels[location]}</p>
+                        </div>
+
+                        <div className="pt-4 space-y-2">
+                             <p className="text-xs text-purple-400 uppercase tracking-widest font-bold">Opzioni Selezionate</p>
+                            {priceDetails.map((item, idx) => (
+                                <div key={idx} className="flex justify-between text-gray-300">
+                                    <span className="pl-4 text-gray-400">{item.label}</span>
+                                    <span className="font-medium text-purple-300">€ {item.price}</span>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {/* Riga di sconto premio */}
+                        {appliedPrizeName && (
+                            <div className="pt-4 border-t border-gray-800">
+                                <div className="flex justify-between text-red-400 font-bold">
+                                    <span className="pl-4 italic">Premio Applicato: {appliedPrizeName}</span>
+                                    <span>- € {appliedDiscount}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Total Price */}
+                    <div className="mt-4 pt-4 border-t-2 border-purple-700/50 flex justify-between items-center">
+                        <p className="text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <Icons.DollarSign className="text-purple-400"/>
+                            Costo Totale Stimato
+                        </p>
+                        <p className={`text-2xl font-extrabold ${appliedPrizeName ? 'text-green-400 line-through' : 'text-purple-400'}`}>
+                            € {totalEstimatedPrice}
+                        </p>
+                    </div>
+                    {/* Prezzo finale scontato */}
+                    {appliedPrizeName && (
+                        <div className="mt-2 flex justify-between items-center">
+                            <p className="text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                Costo Finale
+                            </p>
+                            <p className="text-3xl font-extrabold text-green-400">
+                                € {finalPrice}
+                            </p>
+                        </div>
+                    )}
+
+
+                    {/* Punti Guadagnati */}
+                    <div className="mt-4 pt-4 border-t-2 border-purple-700/50 flex justify-between items-center bg-purple-900/30 p-2 rounded-lg">
+                        <p className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <Icons.Star className="text-yellow-400"/>
+                            Punti Fedeltà Guadagnati
+                        </p>
+                        <p className="text-xl font-extrabold text-yellow-300">
+                            + {pointsEarned} Punti
+                        </p>
+                    </div>
+
+                </div>
+
+                {/* Pulsante per il report finale (Nuova navigazione) */}
+                <button
+                  onClick={handleSaveAndReport}
+                  className="mt-4 w-full py-4 rounded-full font-bold text-lg tracking-wider transition-all shadow-lg bg-gradient-to-r from-purple-600 to-purple-800 text-white hover:shadow-[0_0_20px_rgba(147,51,234,0.6)]"
+                >
+                  SALVA E VEDI REPORT COMPLETO
+                </button>
+              </div>
+            );
+          };
+          
+          // STEP 5: REPORT
+          const renderReport = () => {
+            if (historyList.length === 0) {
+                return (
+                    <div className="w-full max-w-md text-white text-center p-6 bg-gray-900 rounded-xl">
+                        Nessuna serata programmata. Riprova!
+                        <button
+                            onClick={restart}
+                            className="mt-6 w-full py-4 rounded-full bg-gradient-to-r from-purple-700 to-purple-900 text-white font-bold text-lg tracking-wider shadow-[0_0_25px_rgba(147,51,234,0.4)] hover:scale-[1.02] transition-all duration-300"
+                        >
+                            TORNA ALLA PAGINA INIZIALE
+                        </button>
+                    </div>
+                );
+            }
+        
+            const totalEvenings = historyList.length;
+            const totalSpent = historyList.reduce((sum, item) => sum + item.totalPrice, 0);
+            const romanticCount = historyList.filter(item => item.mood === 'romantica').length;
+            const hotCount = historyList.filter(item => item.mood === 'hot').length;
+            
+            const locationStats = historyList.reduce((acc, item) => {
+                acc[item.location] = (acc[item.location] || 0) + 1;
+                return acc;
+            }, {});
+            
+            const locationLabels = {
+                casa_mia: 'Casa Mia',
+                casa_sua: 'Casa Sua',
+                hotel: 'Hotel/Suite',
+                ristorante: 'Ristorante'
+            };
+
+            const unusedPrizesCount = activePrizes.filter(p => p.isUsed === false).length;
+
+            return (
+                <div className="w-full max-w-md animate-fade-in text-center space-y-8 pb-4">
+                    <CavAppLogo size="normal" /> 
+                    
+                    <h2 className="text-3xl font-extrabold text-white mb-2 font-serif tracking-wider border-b border-purple-800 pb-2">
+                        Report & Statistiche CavApp
+                    </h2>
+                    
+                    {/* Statistiche Chiave */}
+                    <div className="bg-gray-900 border border-purple-800 rounded-xl p-6 shadow-2xl">
+                        <h3 className="text-xs text-purple-400 uppercase tracking-widest mb-4 font-bold">Riepilogo Globale</h3>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-left">
+                            <StatBox label="Serate Programmate" value={totalEvenings} icon={<Icons.Zap />} />
+                            <StatBox label="Costo Totale Finale" value={`€ ${totalSpent}`} icon={<Icons.DollarSign />} highlight />
+                            <StatBox label="Mood Romantico" value={romanticCount} icon={<Icons.Heart />} />
+                            <StatBox label="Mood Hot" value={hotCount} icon={<Icons.Flame />} />
+                        </div>
+                        
+                        <p className="text-xs text-purple-400 uppercase tracking-widest mt-6 mb-2 font-bold">Distribuzione per Location</p>
+                        <div className="flex justify-around text-sm text-gray-300">
+                            {Object.entries(locationStats).map(([key, count]) => (
+                                <span key={key} className="flex flex-col items-center">
+                                    <span className="font-semibold text-white">{count}</span>
+                                    <span className="text-xs text-gray-500">{locationLabels[key]}</span>
+                                
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Totale Punti e Premi Attivi */}
+                    <div className="bg-gradient-to-r from-purple-800 to-purple-900 border border-purple-600 rounded-xl p-4 shadow-2xl space-y-2">
+                         <div className="flex justify-between items-center">
+                            <h3 className="text-sm text-white uppercase tracking-widest font-bold flex items-center gap-2">
+                                <Icons.Star className="text-yellow-400 text-2xl"/> Totale Punti Fedeltà
+                            </h3>
+                            <p className="text-3xl font-extrabold text-yellow-300">{points}</p>
+                        </div>
+                         <div className="flex justify-between items-center border-t border-purple-700/50 pt-2">
+                            <h3 className="text-sm text-white uppercase tracking-widest font-bold flex items-center gap-2">
+                                <Icons.Tag className="text-green-400 text-xl"/> Premi Riscattati (Da Usare)
+                            </h3>
+                            <p className="text-xl font-extrabold text-green-400">{unusedPrizesCount}</p>
+                        </div>
+                    </div>
+
+                    {/* Tabella Cronologia Serate */}
+                    <div className="text-left bg-gray-900 border border-purple-800 rounded-xl p-4 shadow-2xl">
+                        <h3 className="text-xs text-purple-400 uppercase tracking-widest mb-3 font-bold">Cronologia Serate Programmate</h3>
+                        <div className="space-y-3">
+                            {historyList.slice().reverse().map((item, index) => (
+                                <div key={item.id} className="border-b border-gray-800 pb-3 last:border-b-0">
+                                    <div className="flex justify-between items-center">
+                                        <span className={`text-md font-bold ${item.mood === 'hot' ? 'text-red-400' : 'text-pink-400'}`}>
+                                            {item.title}
+                                        </span>
+                                        <span className="text-md font-extrabold text-purple-300">
+                                            € {item.totalPrice}
+                                        </span>
+                                    </div>
+                                    <div className="text-sm text-gray-500 flex justify-between">
+                                        {item.mood.toUpperCase()} in {locationLabels[item.location]} 
+                                        <span className="text-yellow-400 font-semibold">+ {item.pointsEarned} Punti</span>
+                                    </div>
+                                    {item.appliedPrize && (
+                                        <p className="text-xs text-green-400 font-semibold mt-1">
+                                            <Icons.Tag className="text-green-400 text-sm"/> Premio Usato: {item.appliedPrize}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Messaggio della Direzione */}
+                    <div className="bg-purple-900/40 border border-purple-600 rounded-xl p-4 shadow-inner">
+                        <p className="text-sm text-purple-300 font-medium italic">
+                            Un ringraziamento speciale da parte della Direzione CavApp:
+                        </p>
+                        <p className="text-white text-md mt-1 font-semibold">
+                            "La vostra partecipazione è il cuore della nostra community. Grazie per aver scelto CavApp. Continuate a creare momenti indimenticabili!"
+                        </p>
+                    </div>
+
+
+                    <button
+                        onClick={restart}
+                        className="mt-6 w-full py-4 rounded-full bg-gradient-to-r from-purple-700 to-purple-900 text-white font-bold text-lg tracking-wider shadow-[0_0_25px_rgba(147,51,234,0.4)] hover:scale-[1.02] transition-all duration-300"
+                    >
+                        TORNA ALLA PAGINA INIZIALE
+                    </button>
+                    
+                    <button
+                        onClick={handleClearHistory}
+                        className="mt-4 w-full py-3 rounded-full bg-red-800/50 text-red-300 font-medium text-sm tracking-wider transition-all duration-300 hover:bg-red-800/70"
+                    >
+                        Cancella Cronologia, Punti e Premi Salvati
+                    </button>
+                </div>
+            );
+          };
+
+
+          return (
+            <div className="min-h-screen bg-black text-purple-500 font-sans selection:bg-purple-500 selection:text-black">
+              {/* Background decoration (glow) */}
+              <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[100px]"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[100px]"></div>
+              </div>
+
+              {/* Contenitore principale (non più fixed, rimosso pt-16 e aggiunto pt-4) */}
+              <div className="relative z-10 flex flex-col items-center min-h-screen p-6 pt-4"> 
+                
+                {/* --- NUOVA POSIZIONE SCROLLABILE per NOME UTENTE e LOGIN/LOGOUT --- */}
+                {/* Visualizzato solo nello Step 0 (Welcome) come era l'intenzione originale per il login */}
+                <div className="w-full max-w-md flex items-center justify-between mb-4"> 
+                    {userName && (
+                        <p className="flex-1 text-left text-sm text-purple-300 font-semibold italic tracking-wider opacity-70">
+                            Benvenuto, <span className="text-white font-bold">{userName}</span>
+                        </p>
+                    )}
+                      
+                    {step === 0 && ( 
+                        <button
+                            onClick={userName ? handleLogout : handleLogin}
+                            className="flex-shrink-0 text-xs font-semibold tracking-wider p-2 rounded-lg transition-colors duration-200 
+                                       text-purple-400 border border-purple-800 hover:bg-purple-900/50 bg-black/50 backdrop-blur-sm shadow-lg"
+                        >
+                            {userName ? 'Log Out' : 'Log In'}
+                        </button>
+                    )}
+                </div>
+                {/* ---------------------------------------------------------------- */}
+
+
+                {/* HEADER GLOBALE ESISTENTE (per freccia indietro e logo negli step intermedi) */}
+                {step > 0 && step < 5 ? ( 
+                  <div className="w-full max-w-md flex flex-col items-center animate-fade-in">
+                    <div className="w-full flex items-center justify-between mb-2">
+                        {/* Il pulsante Indietro è mostrato solo tra la selezione Mood (2) e Riepilogo (4) */}
+                        {step > 1 && step < 5 ? ( 
+                            <button 
+                                onClick={goBack} 
+                                className="p-2 rounded-full hover:bg-purple-900/30 text-purple-400 transition-colors"
+                            >
+                                <Icons.ArrowLeft size={24} />
+                            </button>
+                        ) : <div className="w-10"></div>}
+                        <CavAppLogo size="normal" />
+                        <div className="w-10"></div> {/* Placeholder a destra per bilanciare la freccia */}
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Content Area */}
+                <div className="flex-1 flex flex-col items-center justify-center w-full mt-4">
+                  {step === 0 && renderWelcome()}
+                  {step === 1 && renderMoodSelection()}
+                  {step === 2 && renderLocationSelection()}
+                  {step === 3 && renderOptionsSelection()}
+                  {step === 4 && renderSummary()}
+                  {step === 5 && renderReport()} 
+                  {step === 6 && <VIPCard 
+                                    currentPoints={points} 
+                                    setPoints={setPoints} 
+                                    setStep={setStep} 
+                                    activePrizes={activePrizes}
+                                    setActivePrizes={setActivePrizes}
+                                  />} 
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // --- Bootstrap React App ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>
